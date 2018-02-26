@@ -15,9 +15,9 @@ function reFormatter(){
   VARIABLES
   *******************************************/
 
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Live Sheet");
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Monday Feb 26");
   var shRecur = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Recurring Appointments");
-  var shFormat = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Formatting Sheet");
+  var shFormat = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Formatting Sheet (DO NOT EDIT)");
   var shCancel = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Cancelled Appointments");
 
   var lastRow = sh.getLastRow();                // last Row variable
@@ -31,6 +31,8 @@ function reFormatter(){
   var strBusNoteCol = "L";                      // Business Notes Column
 
   var date = Utilities.formatDate(new Date(), "GMT-5", "MM/dd/yyyy"); // current Date
+  date = "02/26/2018";
+  var editTime = Utilities.formatDate(new Date(), "GMT-5", "hh:mm a MMMM d, yyyy.");
 
   var strFullDate="";                           // Date in mm/dd/yyyy hh:mmam/pm
   var strOnlyDate="";                           // Date in mm/dd/yyyy
@@ -81,8 +83,7 @@ function reFormatter(){
   sh.autoResizeColumn(8);
   sh.autoResizeColumn(9);
 
-  sh.setFrozenRows(1);
-  sh.setRowHeight(1, 60);
+  sh.setRowHeight(2, 60);
 
   lastRow = sh.getLastRow(); // update lastRow
   lastColumn = sh.getLastColumn(); // update lastColumn
@@ -170,10 +171,13 @@ function reFormatter(){
   /**************************************************************************************************/
 
   sh.getRange(2,1,sh.getMaxRows()-1, sh.getMaxColumns()).clear();
+
   shCancel.getRange(2, 1, shCancel.getMaxRows()-1, shCancel.getMaxColumns()).clearDataValidations().clear();
 //  var onlyCancelled = onlyToday.splice(cancelledAppStartRow, cancelledAppCount);
-
-  sh.getRange(2, 1, onlyToday.length, onlyToday[0].length).setValues(onlyToday);
+  sh.getRange(1,1,1,sh.getMaxColumns()).moveTo(sh.getRange(2,1,1,sh.getMaxColumns()));
+  sh.setFrozenRows(1);
+  sh.setFrozenRows(2);
+  sh.getRange(3, 1, onlyToday.length, onlyToday[0].length).setValues(onlyToday);
 //  shCancel.getRange(2, 1, onlyCancelled.length, onlyCancelled[0].length).setValues(onlyCancelled);
 
   lastRow = sh.getLastRow(); // update lastRow
@@ -207,12 +211,12 @@ function reFormatter(){
   lastRow = sh.getLastRow(); // update lastRow
   lastColumn = sh.getLastColumn(); // update lastColumn
   sh.insertColumnAfter(4);
-  sh.getRange("E1").setValue("duration");
+  sh.getRange("E2").setValue("duration");
 
-  for (i=2; i<=lastRow; i++) {
+  for (i=3; i<=lastRow; i++) {
     sh.getRange("E" + i).setFormula("=I" + i + "-H" + i);
   }
-  sh.getRange("E2:E" + lastRow).setNumberFormat("h:mm").setHorizontalAlignment("center");
+  sh.getRange(3, 5,lastRow-2, 1).setNumberFormat("h:mm").setHorizontalAlignment("center");
 
   /*************************************************
   4. Increase Row height
@@ -236,70 +240,95 @@ function reFormatter(){
 
   /*************************************************
   6. Add columns for Tickets created?, Card on File
-  Present? and Envoy Sign In? Processes?
+  Present? and Envoy Sign In? Processes? Prepaid?
+  and also Ticket#
   *************************************************/
 
-  var numColAdded = 4;
+  var numColAdded = 5;
   lastRow = sh.getLastRow(); // update lastRow
   lastColumn = sh.getLastColumn(); // update lastColumn
 
-  sh.insertColumnsAfter(2,4);
+  sh.insertColumnsAfter(2,numColAdded);
   sh.setColumnWidth(3, 40);
   sh.setColumnWidth(4, 40);
   sh.setColumnWidth(5, 40);
   sh.setColumnWidth(6, 40);
-  sh.getRange("C1").setValue("Tickets?");
-  sh.getRange("D1").setValue("Card On File?");
-  sh.getRange("E1").setValue("Envoy?");
-  sh.getRange("F1").setValue("Processed?");
-  var dataValidRule = SpreadsheetApp.newDataValidation().requireValueInList(['Y', 'N'], true).build();
-  sh.getRange(2, 3, lastRow, numColAdded).setDataValidation(dataValidRule);
+  sh.setColumnWidth(7, 40);
+  sh.getRange("C2").setValue("Tickets?");
+  sh.getRange("D2").setValue("Card On File?");
+  sh.getRange("E2").setValue("Special Billing?");
+  sh.getRange("F2").setValue("Envoy");
+  sh.getRange("G2").setValue("Processed??");
 
-  shFormat.getRange("B3").copyTo(sh.getRange(2,1, lastRow-1, lastColumn), {formatOnly:true});
-  shFormat.getRange("B4").copyTo(sh.getRange(2,1, lastRow-1, lastColumn), {formatOnly:true});
-  shFormat.getRange("C1").copyTo(sh.getRange(2,3, lastRow-1, 1), {formatOnly:true});
-  shFormat.getRange("C2").copyTo(sh.getRange(2,3, lastRow-1, 1), {formatOnly:true});
-  shFormat.getRange("C1").copyTo(sh.getRange(2,4, lastRow-1, 1), {formatOnly:true});
-  shFormat.getRange("C2").copyTo(sh.getRange(2,4, lastRow-1, 1), {formatOnly:true});
-  shFormat.getRange("C1").copyTo(sh.getRange(2,5, lastRow-1, 1), {formatOnly:true});
-  shFormat.getRange("C2").copyTo(sh.getRange(2,5, lastRow-1, 1), {formatOnly:true});
-  shFormat.getRange("C1").copyTo(sh.getRange(2,6, lastRow-1, 1), {formatOnly:true});
-  shFormat.getRange("C2").copyTo(sh.getRange(2,6, lastRow-1, 1), {formatOnly:true});
+  var ticketsDataValidRule = SpreadsheetApp.newDataValidation().requireValueInList(['Y', 'N'], true).build();
+  var cardOnFileDataValidRule = SpreadsheetApp.newDataValidation().requireValueInList(['Y', 'N pays with cash/check', 'N'], true).build();
+  var specialBillingDataValidRule = SpreadsheetApp.newDataValidation().requireValueInList(['Y Prepaid', 'Y Monthly', 'Y Biweekly', 'Y Weekly', 'N'], true).build();
+  var envoyDataValidRule = SpreadsheetApp.newDataValidation().requireValueInList(['Y', 'N but student was here', 'N'], true).build();
+  var processedDataValidRule = SpreadsheetApp.newDataValidation().requireValueInList(['Y CC on file', 'Y check/cash', 'Y on time cancel', 'Y late cancel/no-show', 'N no payment info', 'N special billing'], true).build();
+
+  sh.insertColumnBefore(1);
+  sh.getRange("A2").setValue("Ticket #").setHorizontalAlignment("left");
+
+  sh.getRange(3, 4, lastRow, 1).setDataValidation(ticketsDataValidRule);
+  sh.getRange(3, 5, lastRow, 1).setDataValidation(cardOnFileDataValidRule);
+  sh.getRange(3, 6, lastRow, 1).setDataValidation(specialBillingDataValidRule);
+  sh.getRange(3, 7, lastRow, 1).setDataValidation(envoyDataValidRule);
+  sh.getRange(3, 8, lastRow, 1).setDataValidation(processedDataValidRule);
+
+  shFormat.getRange("D2").copyTo(sh.getRange(3,4, lastRow-2, 1), {formatOnly:true}); // Tickets
+  shFormat.getRange("D3").copyTo(sh.getRange(3,4, lastRow-2, 1), {formatOnly:true}); // Tickets
+  shFormat.getRange("E2").copyTo(sh.getRange(3,5, lastRow-2, 1), {formatOnly:true});  // Card on File
+  shFormat.getRange("E3").copyTo(sh.getRange(3,5, lastRow-2, 1), {formatOnly:true});  // Card on File
+  shFormat.getRange("E4").copyTo(sh.getRange(3,5, lastRow-2, 1), {formatOnly:true});  // Card on File
+  shFormat.getRange("F2").copyTo(sh.getRange(3,7, lastRow-2, 1), {formatOnly:true});  // Envoy
+  shFormat.getRange("F3").copyTo(sh.getRange(3,7, lastRow-2, 1), {formatOnly:true});  // Envoy
+  shFormat.getRange("F4").copyTo(sh.getRange(3,7, lastRow-2, 1), {formatOnly:true});  // Envoy
+  shFormat.getRange("G2").copyTo(sh.getRange(3,6, lastRow-2, 1), {formatOnly:true});  // Special Billing
+  shFormat.getRange("G3").copyTo(sh.getRange(3,6, lastRow-2, 1), {formatOnly:true});  // Special Billing
+  shFormat.getRange("G4").copyTo(sh.getRange(3,6, lastRow-2, 1), {formatOnly:true});  // Special Billing
+  shFormat.getRange("G5").copyTo(sh.getRange(3,6, lastRow-2, 1), {formatOnly:true});  // Special Billing
+  shFormat.getRange("G6").copyTo(sh.getRange(3,6, lastRow-2, 1), {formatOnly:true});  // Special Billing
+  shFormat.getRange("H12").copyTo(sh.getRange(3,1, lastRow-2, lastColumn), {formatOnly:true});  // Processed
+  shFormat.getRange("H13").copyTo(sh.getRange(3,1, lastRow-2, lastColumn), {formatOnly:true});  // Processed
+  shFormat.getRange("H14").copyTo(sh.getRange(3,1, lastRow-2, lastColumn), {formatOnly:true});  // Processed
 
   /*************************************************
   7. Alternating colors
   *************************************************/
 
   lastColumn = sh.getLastColumn();
-  sh.getRange(1, 1, 1, lastColumn).setBackground("#2c7fb4").setFontColor("#FFF").setFontWeight("bold"); // header color
+  sh.getRange(1, 1, 2, lastColumn).setBackground("#2c7fb4").setFontColor("#FFF").setFontWeight("bold"); // header color
 
-  for (i=2; i<=lastRow; i+=2) {
+  for (i=3; i<=lastRow; i+=2) {
     sh.getRange(i, 1, 1, lastColumn).setBackground("#FFF");
   }
-  for (j=3; j<=lastRow; j+=2) {
+  for (j=4; j<=lastRow; j+=2) {
     sh.getRange(j, 1, 1, lastColumn).setBackground("#b4e3f6");
   }
 
   /*************************************************
   8. Resize Columns
   *************************************************/
-
-  sh.autoResizeColumn(1);
+  sh.setColumnWidth(1, 100);
   sh.autoResizeColumn(2);
-  sh.autoResizeColumn(7);
-  sh.autoResizeColumn(8);
+  sh.autoResizeColumn(3);
   sh.autoResizeColumn(9);
   sh.autoResizeColumn(10);
+  sh.autoResizeColumn(11);
   sh.autoResizeColumn(12);
-  sh.autoResizeColumn(13);
+  sh.autoResizeColumn(14);
+  sh.autoResizeColumn(15);
+  sh.setColumnWidth(16, 200);
 
   lastRow = sh.getLastRow(); // update lastRow
   lastColumn = sh.getLastColumn(); // update lastColumn
-  sh.getRange(1,3,lastRow).setWrap(true);
-  sh.getRange(1,4,lastRow).setWrap(true);
-  sh.getRange(1,5,lastRow).setWrap(true);
-  sh.getRange(1,6,lastRow).setWrap(true);
-  sh.getRange(1,11,lastRow).setWrap(true);
+  sh.getRange(2,4,lastRow).setWrap(true);
+  sh.getRange(2,5,lastRow).setWrap(true);
+  sh.getRange(2,6,lastRow).setWrap(true);
+  sh.getRange(2,7,lastRow).setWrap(true);
+  sh.getRange(2,11,lastRow).setWrap(true);
+
+  sh.getRange(1,12).setValue("Last Updated: " + editTime).setWrap(true);
 
   /*************************************************
   9. Highlight Cancelled Appointments
