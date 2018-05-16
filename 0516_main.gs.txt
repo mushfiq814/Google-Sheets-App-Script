@@ -1,0 +1,569 @@
+/*************************************************************************
+SQUARE APPOINTMENTS HISTORY TO GOOGLE SHEETS REFORMATTER V1.0
+**************************************************************************
+
+Author:   Mushfiq Mahmud
+Company:  Disciplined Minds Tutoring LLC, Tampa, FL
+Created:  January 2018
+Language: JavaScript
+
+*************************************************************************/
+
+/***************
+1. Subject Names with " - " in them get that part deleted. [DONE]
+2. Some student names have double spaces resulting them not to be detected as duplicates and therefore there are doubles on the sheet
+3. Notes Vlookup automation
+3.5. Merge with existing notes after vlookup
+4. Some cancelled appointments have their accepted counterpart still showing
+5. All tutors have NOT shared their calendars
+6. Delete the default appointment note for appointments pulled from calendar [DONE]
+7. Add black END bars
+***************/
+
+function reFormatter(){
+
+  /******************************************
+  VARIABLES
+  *******************************************/
+  var date = Utilities.formatDate(new Date(), "GMT-4", "MM/dd/yyyy"); // current Date
+  
+  var daysArray = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  var d = new Date(); // current date
+  var d2 = Utilities.formatDate(new Date(), "GMT-4", "MMM d"); // current Date in Mon d format
+  var dateForNamePurposes = daysArray[d.getDay()] + " " + d2;
+  
+  /*************************************************/
+//  dateForNamePurposes = "Editing Sheet";
+//  date = "05/13/2018";
+//  Also, change line 64 to say startDate = new Date(date);
+  /*************************************************/
+
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(dateForNamePurposes);
+  var shRecur = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Recurring Appointments");
+  var shFormat = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Formatting Sheet (DO NOT EDIT)");
+  var shCancel = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Cancelled Appointments");
+  
+  var lastRow = sh.getLastRow();                // last Row variable
+  var lastColumn = sh.getLastColumn();          // last Column variable
+  var maxRows = sh.getMaxRows();                // maximum rows
+  var rowHeight = 30;                           // desired row height in pixels
+  var strStartDateCol = "D";                    // Start Date/Time Column
+  var strEndDateCol = "E";                      // End Date/Time Column
+  var strClientNameCol = "G";                   // Client Name Column
+  var strStaffNameCol = "I";                    // Staff Name Column
+  var strBusNoteCol = "L";                      // Business Notes Column
+
+  var editTime = Utilities.formatDate(new Date(), "GMT-4", "hh:mm a MMMM d, yyyy."); // for displaying
+  var editTime2 = new Date(); // for recording
+  
+  var strFullDate="";                           // Date in mm/dd/yyyy hh:mmam/pm
+  var strOnlyDate="";                           // Date in mm/dd/yyyy
+
+  var range = sh.getRange("A2:I" + lastRow);
+  var startDate = Utilities.formatDate(new Date(), "GMT-4", "MM/dd/yyyy");
+  startDate = new Date(startDate);
+  var endDate = new Date(startDate.getTime() + 1*24*3600*1000);
+  var tutorArray = [
+    { name: "Ayesha Farheen", id: "huk2fedv8g1bhuh6bmbh38usf8@group.calendar.google.com" },
+    { name: "Bárbara Clary Zayas", id: "6nmtfk8gber4i7hb64ovl38lno@group.calendar.google.com" },
+    { name: "Brian Sarkozy", id: "537a5bn0ff72ln0k24a957ua3s@group.calendar.google.com" },
+    { name: "Caleb Whittenburg", id: "s6v65rd2ucaislcfob1g1ttepc@group.calendar.google.com" },
+    { name: "Daniel Viveiros", id: "o4b9un9lvn9a0mbvt5pbve07mo@group.calendar.google.com" },
+    { name: "Diana Sanchez", id: "os4kb9gt3e9voakhch0bf4gi50@group.calendar.google.com" },
+    { name: "Glenn Csontos", id: "5giktiqp581ns81ob9uin4v7gs@group.calendar.google.com" },
+    { name: "Greg Heard", id: "9mijn8miak4lrggu8d1eelg5b4@group.calendar.google.com" },
+    { name: "Haley Beutler", id: "1the452m3rk7n0os67em70f0q4@group.calendar.google.com" },
+    { name: "Jessica Stollenmaier", id: "c4lcvrt8skn679kictt8cm76mg@group.calendar.google.com" },
+    { name: "Ji Park", id: "56k2d7qvpa19c4frqqgf9lka5g@group.calendar.google.com" },
+    { name: "Juli Baker", id: "oeuf5jeuhm37v15hmnl634k9ds@group.calendar.google.com" },
+    { name: "Kristen Emrich", id: "btmpecgarmakj68d0j40voir64@group.calendar.google.com" },
+    { name: "Laurie McCulloch", id: "nusn3aat89093i7ro8p17q6lg4@group.calendar.google.com" },
+    { name: "Madhuri Vaidya", id: "ctje3bf32rsambhrpeseroaaao@group.calendar.google.com" },
+    { name: "Morgan Maloney", id: "k4j1hlntbrh5u2vkeuvtudilpk@group.calendar.google.com" },
+    { name: "Mushfiq Mahmud", id: "mg0qugul67184mbrotl2klc2gs@group.calendar.google.com" },
+    { name: "RJ Forsythe", id: "c3l0j3o5992c35od61ev7cbsuc@group.calendar.google.com" },
+    { name: "Robert Patterson", id: "n7ip788upp2uuc352biri8u4g0@group.calendar.google.com" },
+    { name: "Roxanne Butts", id: "sib6knr1651tb8hk0qjscasrrk@group.calendar.google.com"},
+    { name: "Sarah Maslar", id: "1nk8tu6hbdhccbqmto4ipk95hc@group.calendar.google.com" },
+    { name: "Scott Allen", id: "k3414aq4r7psokq4hsft5ol03g@group.calendar.google.com" },
+    { name: "Trent Strauch", id: "f3k0d5qbmmaqieudfgg06roakc@group.calendar.google.com" }
+  ]; 
+
+  for (var k=0; k<tutorArray.length; k++) {
+    var eventCalendar = CalendarApp.getCalendarById(tutorArray[k].id).getEvents(startDate, endDate);
+    if (eventCalendar.length>0) {
+      var eventArray = sh.getRange(sh.getLastRow()+1,1,eventCalendar.length,14).getValues();
+      for (var i=0; i<eventCalendar.length; i++) {
+        if (eventCalendar[i].getLocation()=="715 W. Platt St., Tampa, FL 33606") eventArray[i][1] = "South Tampa";
+        if (eventCalendar[i].getLocation()=="13847 W. Hillsborough Ave., Tampa, FL 33635") eventArray[i][1] = "Westchase";
+        if (eventCalendar[i].getLocation()==",  ") eventArray[i][1] = "International";
+        eventArray[i][2] = "accepted"
+        eventArray[i][8] = eventCalendar[i].getTitle();
+        
+        var subject = eventCalendar[i].getDescription();
+        subject = subject.substring(subject.indexOf(" - ")+3);
+        subject = subject.substring(subject.indexOf("\n")+1);    
+        if (subject.indexOf("hour")>0) subject = subject.substring(0,subject.indexOf("hour")-5);
+        else if (subject.indexOf("minute")>0) subject = subject.substring(0,subject.indexOf("minutes")-6);
+        eventArray[i][5] = subject;
+        
+        eventArray[i][11] = tutorArray[k].name;
+        eventArray[i][6] = new Date(eventCalendar[i].getStartTime());
+        eventArray[i][7] = new Date(eventCalendar[i].getEndTime());
+        var calendarNoteString = "Pulled from Calendar";
+        eventArray[i][13] = calendarNoteString;
+        
+        eventArray[i][0] = "";
+        eventArray[i][3] = "";
+        eventArray[i][4] = "";
+        eventArray[i][9] = "";
+        eventArray[i][10] = "";
+        eventArray[i][12] = "";
+//        eventArray[i][12] = eventCalendar[i].getDateCreated();
+      }
+      sh.getRange(sh.getLastRow()+1,1,eventArray.length, eventArray[0].length).setValues(eventArray);
+    }
+  }
+
+//  var recurLastRow = shRecur.getLastRow();
+//  var recurLastColumn = shRecur.getLastColumn();
+//  sh.getRange(lastRow+1, 1, recurLastRow, recurLastColumn).setValues(shRecur.getRange(2,1,recurLastRow, recurLastColumn).getValues());
+  
+  // Sort by Date
+  lastRow = sh.getLastRow(); // update lastRow
+  lastColumn = sh.getLastColumn(); // update lastColumn
+  sh.getRange(2, 1, sh.getLastRow(), sh.getLastColumn()).sort([{column: 7, ascending: true}]);
+  
+  /******************************************
+  Original Order:
+  A (1): location_type
+  B (2): location_name
+  C (3): status
+  D (4): created_at
+  E (5): address
+  F (6): service
+  G (7): start
+  H (8): end
+  I (9): client_name
+  J (10): client_email
+  K (11): client_phone
+  L (12): staff
+  M (13): note_from_client
+  N (14): note_from_business
+  *******************************************/
+
+  // Delete columns
+  sh.deleteColumn(11);   // client_phone
+  sh.deleteColumn(10);   // client_email
+  sh.deleteColumn(5);    // address
+  sh.deleteColumn(4);    // created_at
+  sh.deleteColumn(1);    // location_type
+  sh.autoResizeColumn(1);
+  sh.autoResizeColumn(2);
+  sh.autoResizeColumn(3);
+  sh.autoResizeColumn(4);
+  sh.autoResizeColumn(5);
+  sh.autoResizeColumn(6);
+  sh.autoResizeColumn(7);
+  sh.autoResizeColumn(8);
+  sh.autoResizeColumn(9);
+  
+  sh.setRowHeight(2, 60);
+  
+  lastRow = sh.getLastRow(); // update lastRow
+  lastColumn = sh.getLastColumn(); // update lastColumn
+  sh.getRange(1,1, lastRow, lastColumn).clearDataValidations().clear({formatOnly:true});
+  
+  /******************************************
+  Current Order after deletion:
+  A (1): location
+  B (2): status
+  C (3): service
+  D (4): start
+  E (5): end
+  F (6): client_name
+  G (7): staff
+  H (8): note_from_client
+  I (9): note_from_business
+
+  Desired Order:
+  A (1): location
+  B (2): status
+  C (3): client_name
+  D (4): service
+  E (5): duration
+  F (6): staff
+  G (7): note_from_business
+  H (8): start
+  I (9): end
+  J (10): note_from_client
+  *******************************************/
+  
+  /*************************************************
+  1. Delete entries that are not today
+  *************************************************/
+
+  sh.getRange(strStartDateCol + "2:" + strStartDateCol + lastRow).setNumberFormat("mm/dd/yyyy hh:mmam/pm");
+  sh.getRange(strEndDateCol + "2:" + strEndDateCol + lastRow).setNumberFormat("mm/dd/yyyy hh:mmam/pm");
+  sh.getRange(strStartDateCol + "2:" + strStartDateCol + lastRow).setNumberFormat("@");
+
+            /***************************************
+             !!! MORE EFFICIENT DELETING METHOD !!!
+            ***************************************/
+  
+  lastRow = sh.getLastRow(); // update lastRow
+  lastColumn = sh.getLastColumn(); // update lastColumn
+  
+  var dataArray = sh.getRange(2,1,lastRow,lastColumn).getValues();
+  
+  var todayAppCount = 0, todayAppStartRow = 0;
+  var cancelledAppCount = 0, cancelledAppStartRow = 0;
+  
+  for(var i=0, dLen=dataArray.length; i<dLen; i++) {
+    strOnlyDate = dataArray[i][3].substring(0,dataArray[i][3].indexOf(' '));
+    if(strOnlyDate == date) {
+      todayAppCount++;
+    } 
+  }
+  
+  for(var j=0; j<dataArray.length; j++) {
+    strOnlyDate = dataArray[j][3].substring(0,dataArray[j][3].indexOf(' '));
+    if(strOnlyDate != date) {      
+      todayAppStartRow++;
+    } else {
+      break;
+    }
+  }  
+  
+  var onlyToday = dataArray.splice(todayAppStartRow, todayAppCount);
+  
+  /**************************************************************************************************/
+  
+//  for(var i=0, dLen=onlyToday.length; i<dLen; i++) {
+//    if(onlyToday[i][2] != "accepted") {
+//      cancelledAppCount++;
+//    } 
+//  }
+//  
+//  for(var j=0; j<onlyToday.length; j++) {
+//    if(onlyToday == "accepted") {      
+//      cancelledAppStartRow++;
+//    } else {
+//      break;
+//    }
+//  }
+  
+  /**************************************************************************************************/
+  
+  sh.getRange(2,1,sh.getMaxRows()-1, sh.getMaxColumns()).clear();
+  
+  shCancel.getRange(2, 1, shCancel.getMaxRows()-1, shCancel.getMaxColumns()).clearDataValidations().clear();
+//  var onlyCancelled = onlyToday.splice(cancelledAppStartRow, cancelledAppCount);
+  sh.getRange(1,1,1,sh.getMaxColumns()).moveTo(sh.getRange(2,1,1,sh.getMaxColumns()));
+  sh.setFrozenRows(1);
+  sh.setFrozenRows(2);
+  sh.getRange(3, 1, onlyToday.length, onlyToday[0].length).setValues(onlyToday);
+//  shCancel.getRange(2, 1, onlyCancelled.length, onlyCancelled[0].length).setValues(onlyCancelled);
+
+  lastRow = sh.getLastRow(); // update lastRow
+  lastColumn = sh.getLastColumn(); // update lastColumn
+
+  /*************************************************
+  2. Arrange columns according to Desired Order
+  *************************************************/
+
+  // move Client Name to 3rd column
+  sh.insertColumnAfter(2);
+  sh.getRange(strClientNameCol + "1:" + strClientNameCol + lastRow).moveTo(sh.getRange("C1"));
+
+  // move Staff Name to 5th column
+  sh.insertColumnAfter(4);
+  sh.getRange(strStaffNameCol + "1:" + strStaffNameCol + lastRow).moveTo(sh.getRange("E1"));
+
+  // move Note from Business  to 6th column
+  sh.insertColumnAfter(5);
+  sh.getRange(strBusNoteCol + "1:" + strBusNoteCol + lastRow).moveTo(sh.getRange("F1"));
+
+  // delete empty columns
+  sh.deleteColumns(12);
+  sh.deleteColumns(10);
+  sh.deleteColumns(9);
+
+  /*************************************************
+  3. Add Duration Column
+  *************************************************/
+
+  lastRow = sh.getLastRow(); // update lastRow
+  lastColumn = sh.getLastColumn(); // update lastColumn
+  sh.insertColumnAfter(4);
+  sh.getRange("E2").setValue("duration");
+
+  for (i=3; i<=lastRow; i++) {
+    sh.getRange("E" + i).setFormula("=I" + i + "-H" + i);
+  }
+  sh.getRange(3, 5,lastRow-2, 1).setNumberFormat("h:mm").setHorizontalAlignment("center");
+  
+  /*************************************************
+  4. Increase Row height
+  *************************************************/
+
+  for (i=2; i<=lastRow; i++) {
+    sh.setRowHeight(i, rowHeight);
+  }
+  
+  /*************************************************
+  5. Sort by Location, then Status, then Duration, then Client
+  *************************************************/
+  
+  lastRow = sh.getLastRow(); // update lastRow
+  lastColumn = sh.getLastColumn(); // update lastColumn
+  sh.getRange(2, 8, lastRow-1, 1).setNumberFormat("mm/dd/yyyy hh:mmam/pm");
+  
+  // Sort by Location, then Status, then Client Name
+  sh.getRange(3, 1, lastRow, lastColumn).sort([{column: 1, ascending: true}, {column: 2, ascending: true}, {column: 5, ascending: true}, {column: 8, ascending: true}]); 
+  
+
+  /*************************************************
+  6. Add columns for Tickets created?, Card on File 
+  Present? and Envoy Sign In? Processes? Prepaid? 
+  and also Ticket#
+  *************************************************/
+  
+  var numColAdded = 5;
+  lastRow = sh.getLastRow(); // update lastRow
+  lastColumn = sh.getLastColumn(); // update lastColumn
+  
+  sh.insertColumnsAfter(2,numColAdded);
+  sh.setColumnWidth(3, 40);
+  sh.setColumnWidth(4, 40);  
+  sh.setColumnWidth(5, 40);   
+  sh.setColumnWidth(6, 40);
+  sh.setColumnWidth(7, 40);
+  sh.getRange("C2").setValue("Tickets?");
+  sh.getRange("D2").setValue("Card On File?");
+  sh.getRange("E2").setValue("Special Billing?");
+  sh.getRange("F2").setValue("Envoy");
+  sh.getRange("G2").setValue("Processed??");
+  
+  var ticketsDataValidRule = SpreadsheetApp.newDataValidation().requireValueInList(['Y', 'N'], true).build();
+  var cardOnFileDataValidRule = SpreadsheetApp.newDataValidation().requireValueInList(['Y', 'N pays with cash/check', 'N'], true).build();
+  var specialBillingDataValidRule = SpreadsheetApp.newDataValidation().requireValueInList(['Y Star Reward', 'Y Monthly', 'Y Biweekly', 'Y Weekly', 'N'], true).build();
+  var envoyDataValidRule = SpreadsheetApp.newDataValidation().requireValueInList(['Y', 'N but student was here', 'N'], true).build();
+  var processedDataValidRule = SpreadsheetApp.newDataValidation().requireValueInList(['Y CC on file', 'Y check/cash', 'Y on time cancel', 'Y late cancel/no-show', 'Y CC one time', 'Y Prepaid Star Credit', 'N no payment info', 'N special billing'], true).build();
+  
+  sh.insertColumnBefore(1);
+  sh.getRange("A2").setValue("Ticket #").setHorizontalAlignment("left"); 
+  
+  sh.getRange(3, 4, lastRow, 1).setDataValidation(ticketsDataValidRule);
+  sh.getRange(3, 5, lastRow, 1).setDataValidation(cardOnFileDataValidRule);
+  sh.getRange(3, 6, lastRow, 1).setDataValidation(specialBillingDataValidRule);
+  sh.getRange(3, 7, lastRow, 1).setDataValidation(envoyDataValidRule);
+  sh.getRange(3, 8, lastRow, 1).setDataValidation(processedDataValidRule);
+  
+  lastColumn = sh.getLastColumn();
+  
+  shFormat.getRange("D2").copyTo(sh.getRange(3,4, lastRow-2, 1), {formatOnly:true}); // Tickets		
+  shFormat.getRange("D3").copyTo(sh.getRange(3,4, lastRow-2, 1), {formatOnly:true}); // Tickets
+  shFormat.getRange("E2").copyTo(sh.getRange(3,5, lastRow-2, 1), {formatOnly:true});  // Card on File
+  shFormat.getRange("E3").copyTo(sh.getRange(3,5, lastRow-2, 1), {formatOnly:true});  // Card on File
+  shFormat.getRange("E4").copyTo(sh.getRange(3,5, lastRow-2, 1), {formatOnly:true});  // Card on File
+  shFormat.getRange("F2").copyTo(sh.getRange(3,7, lastRow-2, 1), {formatOnly:true});  // Envoy
+  shFormat.getRange("F3").copyTo(sh.getRange(3,7, lastRow-2, 1), {formatOnly:true});  // Envoy
+  shFormat.getRange("F4").copyTo(sh.getRange(3,7, lastRow-2, 1), {formatOnly:true});  // Envoy
+  shFormat.getRange("G2").copyTo(sh.getRange(3,6, lastRow-2, 1), {formatOnly:true});  // Special Billing
+  shFormat.getRange("G3").copyTo(sh.getRange(3,6, lastRow-2, 1), {formatOnly:true});  // Special Billing 
+  shFormat.getRange("G4").copyTo(sh.getRange(3,6, lastRow-2, 1), {formatOnly:true});  // Special Billing
+  shFormat.getRange("G5").copyTo(sh.getRange(3,6, lastRow-2, 1), {formatOnly:true});  // Special Billing
+  shFormat.getRange("G6").copyTo(sh.getRange(3,6, lastRow-2, 1), {formatOnly:true});  // Special Billing 
+  shFormat.getRange("H13").copyTo(sh.getRange(3,1, lastRow-2, lastColumn), {formatOnly:true});  // Processed
+  shFormat.getRange("H14").copyTo(sh.getRange(3,1, lastRow-2, lastColumn), {formatOnly:true});  // Processed
+  shFormat.getRange("H15").copyTo(sh.getRange(3,1, lastRow-2, lastColumn), {formatOnly:true});  // Processed
+  
+  
+  /*************************************************
+  7. Delete Repetitions
+  *************************************************/
+  
+  sh.getRange(3,1,sh.getLastRow()-2, sh.getLastColumn()).sort([{column: 3, ascending: true}, {column: 9, ascending: true}, {column: 10, ascending: true}, {column: 12, ascending: true}, {column: 14, ascending: true}, {column: 13, ascending: true}]);
+  var arrayRep = sh.getRange(3,1,sh.getLastRow()-2,sh.getLastColumn()).getValues();
+  
+  for (var i=arrayRep.length-2;i>=0;i--) {
+    if (arrayRep[i][2]=="accepted" && arrayRep[i][8]==arrayRep[i+1][8] && arrayRep[i][9]==arrayRep[i+1][9] && arrayRep[i][11]==arrayRep[i+1][11] && arrayRep[i][13].toString()==arrayRep[i+1][13].toString()) {
+      if (arrayRep[i][12]==calendarNoteString) {
+        sh.deleteRow(i+3);
+        if ((arrayRep[i][8] + " - " + arrayRep[i][9] + " - " + arrayRep[i][11]) == (arrayRep[i+1][8] + " - " + arrayRep[i+1][9] + " - " + arrayRep[i+1][11])) {
+          Logger.log("Status: OK for Appointment: " + arrayRep[i][8] + " - " + arrayRep[i][9] + " - " + arrayRep[i][11]);
+        }
+        else Logger.log("Status: ERROR; Accidental deletion of: " + arrayRep[i][8] + " - " + arrayRep[i][9] + " - " + arrayRep[i][11]);
+      }
+      else if (arrayRep[i+1][12]==calendarNoteString) {
+        sh.deleteRow(i+4);
+        if ((arrayRep[i+1][8] + " - " + arrayRep[i+1][9] + " - " + arrayRep[i+1][11]) == (arrayRep[i][8] + " - " + arrayRep[i][9] + " - " + arrayRep[i][11])) {
+          Logger.log("Status: OK for Appointment: " + arrayRep[i+1][8] + " - " + arrayRep[i+1][9] + " - " + arrayRep[i+1][11]);
+        }
+        else Logger.log("Status: ERROR; Accidental deletion of: " + arrayRep[i+1][8] + " - " + arrayRep[i+1][9] + " - " + arrayRep[i+1][11]);
+      }
+    }
+  }
+  
+  sh.getRange(3,1,sh.getLastRow()-2, sh.getLastColumn()).sort([{column: 9, ascending: true}, {column: 10, ascending: true}, {column: 12, ascending: true}, {column: 14, ascending: true}, {column: 2, ascending: true}, {column: 3, ascending: true}]);
+  var arrayRep2 = sh.getRange(3,1,sh.getLastRow()-2,sh.getLastColumn()).getValues();
+  for (var i=arrayRep2.length-2;i>=0;i--) {
+    if (arrayRep2[i][1]==arrayRep2[i+1][1] && arrayRep2[i][8]==arrayRep2[i+1][8] && arrayRep2[i][9]==arrayRep2[i+1][9] && arrayRep2[i][11]==arrayRep2[i+1][11] && arrayRep2[i][13].toString()==arrayRep2[i+1][13].toString()) {
+      if (arrayRep2[i][2]=="cancelled_by_seller" && arrayRep2[i+1][2]=="accepted") {
+        Logger.log("Deleted: " + arrayRep2[i][8] + " - " + arrayRep2[i][9] + " - " + arrayRep2[i][10].toString() + " - " + arrayRep2[i][11]);
+        sh.deleteRow(i+4);
+      }
+      else if (arrayRep2[i+1][2]=="cancelled_by_seller" && arrayRep2[i][2]=="accepted") {
+        Logger.log("Deleted: " + arrayRep2[i+1][8] + " - " + arrayRep2[i+1][9] + " - " + arrayRep2[i+1][10].toString() + " - " + arrayRep2[i+1][11]);
+        sh.deleteRow(i+3);
+      }
+    }
+  }
+  
+  /*************************************************
+  7. Add Special Billing Note
+  *************************************************/
+  
+//  sh.getRange(3,1,sh.getLastRow()-2,sh.getLastColumn()).sort([{column: 9, ascending: true}]); // sort by Student name
+//  var shSpBilling = SpreadsheetApp.openById("1hW_2bV2Z-1FutEM6QtetvoGzPbHRddI8IJYxNcjHyT8").getSheetByName("Disciplined Minds");
+//  var arrSpBilling = sh.getRange(3,1,sh.getLastRow()-2,sh.getLastColumn()).getValues();
+//  var arrSpBillingDataBase = shSpBilling.getRange(2,1,shSpBilling.getLastRow()-1,2).getValues();
+  
+  
+  
+  /*************************************************
+  7. Alternating colors
+  *************************************************/
+  
+  // Sort by Location, then Status, then Duration, then Start time
+  sh.getRange(3,1,sh.getLastRow()-2,sh.getLastColumn()).sort([{column: 2, ascending: true}, {column: 3, ascending: true}, {column: 11, ascending: true}, {column: 14, ascending: true}]);
+  
+  lastColumn = sh.getLastColumn();
+  sh.getRange(1, 1, 2, lastColumn).setBackground("#2c7fb4").setFontColor("#FFF").setFontWeight("bold"); // header color
+  
+  for (i=3; i<=lastRow; i+=2) {
+    sh.getRange(i, 1, 1, lastColumn).setBackground("#FFF");
+  }
+  for (j=4; j<=lastRow; j+=2) {
+    sh.getRange(j, 1, 1, lastColumn).setBackground("#b4e3f6");
+  }
+  
+  /*************************************************
+  8. Resize Columns
+  *************************************************/
+  sh.getRange(3,11,sh.getLastRow()-2,1).setNumberFormat("h:mm");
+  sh.getRange(3,14,sh.getLastRow()-2,2).setNumberFormat("mm/dd/yyyy hh:mmam/pm");
+  
+  sh.setColumnWidth(1, 100);
+  sh.autoResizeColumn(2);
+  sh.autoResizeColumn(3);
+  sh.autoResizeColumn(9);
+  sh.autoResizeColumn(10);  
+  sh.autoResizeColumn(11);
+  sh.autoResizeColumn(12);
+  sh.autoResizeColumn(14);
+  sh.autoResizeColumn(15); 
+  sh.setColumnWidth(16, 200);
+  
+  lastRow = sh.getLastRow(); // update lastRow
+  lastColumn = sh.getLastColumn(); // update lastColumn
+//  sh.getRange(2,4,lastRow).setWrap(true); 
+//  sh.getRange(2,5,lastRow).setWrap(true); 
+//  sh.getRange(2,6,lastRow).setWrap(true); 
+//  sh.getRange(2,7,lastRow).setWrap(true); 
+  sh.getRange(2,11,lastRow).setWrap(true); 
+  
+  sh.getRange(1,12).setValue("Last Updated: " + editTime).setWrap(true); // Display Last Updated Time
+  sh.getRange(1,10).setValue(editTime2).setFontColor("#2c7fb4");
+  sh.getRange(sh.getLastRow()+1,1).setValue("END");
+  
+  /*************************************************
+  9. Highlight Cancelled Appointments
+  *************************************************/
+  
+  lastRow = sh.getLastRow(); // update lastRow
+  lastColumn = sh.getLastColumn(); // update lastColumn
+    
+//  sh.getRange(1, 1, 1, lastColumn).copyTo(shCancel.getRange(1, 1, 1, lastColumn));
+  var cancelArray = sh.getRange(3,1,sh.getLastRow()-2,sh.getLastColumn()).getValues();
+  for (i=0; i<cancelArray.length; i++) {
+    if (cancelArray[i][2]!="accepted") {
+      sh.getRange(i+3, 1, 1, lastColumn).setBackground("#e06666");
+    }
+  }
+  
+  /*************************************************
+  10. Delete Empty Rows at the end
+  *************************************************/
+  
+  lastRow = sh.getLastRow(); // update lastRow
+  lastColumn = sh.getLastColumn(); // update lastColumn
+  maxRows = sh.getMaxRows(); // update maxRow
+  
+  sh.deleteRows(lastRow + 1, maxRows - lastRow);
+  
+  /*************************************************
+  11. Add Ticket number and Names
+  *************************************************/
+  
+  sh.insertColumnAfter(sh.getLastColumn());
+  
+  sh.getRange(3,11,sh.getLastRow()-2,1).setNumberFormat("h:mm");
+  sh.getRange(3,14,sh.getLastRow()-2,2).setNumberFormat("mm/dd/yyyy hh:mmam/pm");
+  
+  
+//  var ticketNameArray = sh.getRange(3,1,sh.getLastRow()-2,sh.getLastColumn()).getValues();
+//  
+//  for (var i=0; i<ticketNameArray.length; i++) {
+//    if (ticketNameArray[i]
+//    endRow = 103;
+//    
+//    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Tuesday Mar 6");
+//    var array = sh.getRange(3,1,endRow-2,12).getValues();
+//    
+//  }
+//  for (var i=0; i< endRow-2; i++) {
+//    sh.getRange(i+3, 17).setValue(array[i][0] + " - " + array[i][8] + " - " + array[i][9] + " - " + array[i][11]);
+//  }
+}
+
+
+/************************************************************
+UNUSED CODE
+************************************************************/
+
+//  // iterate through array (backwards) to calculate the rowIndex 
+//  for(var j=dLen=dataArray.length-1; j>=0; j--) {
+//    if(dataArray[j][2] != "Done") {      
+//      cSecond++;
+//    } else {
+//      break;
+//    }
+//  }
+
+
+//  var editedCell = sh.getActiveRange().getColumnIndex();
+//  
+//  var now = new Date();
+//  var twoDaysFromNow = new Date(now.getTime() + (48 * 60 * 60 * 1000));
+//  
+//  var cal = CalendarApp.getCalendarById("mushfiq8194@gmail.com");
+//  var calName = cal.getTitle();
+//  var events = cal.getEvents(now, twoDaysFromNow);
+//  
+//  var str1, str2, str3, str4, str5;
+//  
+//  for (j=1; j<=events.length; j++) {
+//    str1="A";
+//    str1+=j;    
+//    sh.getRange(str1).setValue(events[0].getDescription());
+//    str2="B";
+//    str2+=j;
+//    sh.getRange(str2).setValue(events[0].getLocation());
+//  }
+//    .getTitle()
+//    .getStartTime()
+//    .getEndTime()
+//    .getDescription()
+//    .getLocation()

@@ -1,0 +1,94 @@
+function createTicketNames() {
+  var daysArray = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  var d = new Date(); // current date
+  var d2 = Utilities.formatDate(new Date(), "GMT-5", "MMM d"); // current Date in Mon d format
+  var dateForNamePurposes = daysArray[d.getDay()] + " " + d2;
+  var dateForTicketNamePurposes = Utilities.formatDate(new Date(), "GMT-5", "MMddyy");
+ 
+  /*************************************************/  
+//  dateForNamePurposes = "Sunday May 13";
+//  dateForTicketNamePurposes = "051318";
+  /*************************************************/
+  
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(dateForNamePurposes);
+  var array = sh.getRange(3,1,sh.getLastRow()-2,3).getValues(); // !!!WARNING: ONLY FIRST THREE COLUMNS ARE TAKEN TO IMPROVE EFFICIENCY!!!
+  var subScript = "";
+  var ticketName = "";
+  var ticketNumber = 0;
+  var sTampaTicketNumber = 0;
+  var westchaseTicketNumber = 0;
+  var intlTicketNumber = 0;
+  
+  for (var i=0; i<sh.getLastRow()-2; i++) {
+    if (array[i][2]=="accepted") {
+      if (array[i][1]=="South Tampa") {
+        subScript = "ST";
+        sTampaTicketNumber++;
+        ticketNumber = sTampaTicketNumber;
+      }
+      else if (array[i][1]=="Westchase") {
+        subScript = "WC";
+        westchaseTicketNumber++;
+        ticketNumber = westchaseTicketNumber;
+      }
+      else if (array[i][1]=="International") {
+        subScript = "INTL";
+        intlTicketNumber++;
+        ticketNumber = intlTicketNumber;
+      }
+      ticketName = dateForTicketNamePurposes + ('000' + ticketNumber).substr(-3) + subScript;
+      array[i][0]=ticketName;
+    }
+  }
+  sh.getRange(3,1,array.length,array[0].length).setValues(array);
+  array = sh.getRange(3,1,sh.getLastRow()-2,sh.getLastColumn()).getValues();
+  
+  for (var k=0; k<array.length; k++) {
+    array[k][10] = Utilities.formatDate(new Date(array[k][10]), "GMT-5", "H:mm");
+    Logger.log(array[k][10]);
+  }
+  for (var i=0; i<sh.getLastRow()-2; i++) {
+    if (array[i][0] != "") {
+      array[i][16] = array[i][0] + " - " + array[i][8] + " - " + array[i][9] + " - " + array[i][10].toString() + " - " + array[i][11];
+    }
+  }
+  var arraySlice = [];
+  for (var k=0; k<array.length; k++) {
+    arraySlice.push(array[k].slice(15));
+  }
+  sh.getRange(3,16,arraySlice.length,arraySlice[0].length).setValues(arraySlice);
+  sh.autoResizeColumn(17);
+  sh.getRange(2,17).setValue("Ticket Names");
+}
+
+function testForGettingAppointmentNotesWithVlookUp() {
+  var daysArray = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  var d = new Date(); // current date
+  var d2 = Utilities.formatDate(new Date(), "GMT-5", "MMM d"); // current Date in Mon d format
+  var dateForNamePurposes = daysArray[d.getDay()] + " " + d2;
+  
+  /*************************************************/ 
+//  dateForNamePurposes = "Sunday May 13";
+  /*************************************************/ 
+  
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(dateForNamePurposes);
+  var shList = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Special Billing Note");
+  var clientArray = sh.getRange(3,9,sh.getLastRow()-2,1).getValues();
+  
+  sh.insertColumnAfter(13);  
+  for (var i=0; i<clientArray.length; i++) {
+    // =VLOOKUP(I3,'Special Billing Note'!A$2:B$97,2,false)
+    sh.getRange(i+3,14).setFormula("=VLOOKUP(I" + (i+3) + ",'Special Billing Note'!A$2:B$" + shList.getLastRow() + ",2,false)");
+  }
+  
+  var finalArray = sh.getRange(3,13,sh.getLastRow()-2,2).getValues();
+  for (var j=0; j<finalArray.length; j++) {
+    if (finalArray[j][1]=="#N/A") finalArray[j][1]="";
+    if (finalArray[j][0].length > 0) {
+      if (finalArray[j][1].length > 0) finalArray[j][0] = finalArray[j][1] + ". " + finalArray[j][0];
+    }
+    else finalArray[j][0] = finalArray[j][1];
+  }
+  sh.getRange(3,13,finalArray.length,finalArray[0].length).setValues(finalArray);
+  sh.deleteColumn(14);
+}

@@ -1,0 +1,165 @@
+function updateToday() {
+  var days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  var d = new Date();
+  var d2 = Utilities.formatDate(new Date(), "GMT-5", "MMM d"); // current Date
+  var date = days[d.getDay()] + " " + d2;
+  
+  var checkingDate = Utilities.formatDate(new Date(), "GMT-5", "MM/dd/yyyy"); // time at which script is run
+
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(date);
+  var shEdit = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Editing Sheet");
+  var shFormat = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Formatting Sheet (DO NOT EDIT)");
+  
+  var endCheckingArray = sh.getRange(1,1,sh.getLastRow(),1).getValues();
+  for (var i=0;i<endCheckingArray.length;i++) {
+    if (endCheckingArray[i]=="END") {
+      var prevEntries = i;
+      break;
+    }
+  }
+  Logger.log(prevEntries);
+  prevEntries++;
+//  var prevEntries = sh.getRange(1,1).getValue();
+//  prevEntries = prevEntries.substring(0,prevEntries.indexOf(' '));
+//  prevEntries = parseInt(prevEntries); // total number of previous entries
+  
+//  sh.deleteRow(prevEntries+3); // delete the newly pasted header column
+  var array = sh.getRange(prevEntries+1,1,sh.getLastRow()-prevEntries,sh.getLastColumn()).getValues(); // put all new values in array
+  shEdit.getRange(1,1,array.length,array[0].length).setValues(array); // paste array into shEdit
+  
+  shEdit.deleteColumns(11);   // client_phone
+  shEdit.deleteColumns(10);   // client_email
+  shEdit.deleteColumns(5);    // address
+  shEdit.deleteColumns(1);    // location_type
+  
+  shEdit.getRange(1,3,shEdit.getLastRow(),1).setNumberFormat("mm/dd/yyyy hh:mmam/pm");
+  shEdit.getRange(1,5,shEdit.getLastRow(),2).setNumberFormat("mm/dd/yyyy hh:mmam/pm");
+  shEdit.getRange(1,5,shEdit.getLastRow(),1).setNumberFormat("@");
+  
+  lastRow = shEdit.getLastRow(); // update lastRow
+  lastColumn = shEdit.getLastColumn(); // update lastColumn
+
+  var dataArray = shEdit.getRange(2,1,lastRow-1,lastColumn).getValues(); // after column deletion, new values go into dataArray
+
+  var todayAppCount = 0, todayAppStartRow = 0;
+
+  for(var i=0, dLen=dataArray.length; i<dLen; i++) {
+    var strOnlyDate = dataArray[i][4].substring(0,dataArray[i][4].indexOf(' '));
+    if(strOnlyDate == checkingDate) {
+      todayAppCount++;
+    }
+  }
+
+  for(var j=0; j<dataArray.length; j++) {
+    var strOnlyDate = dataArray[j][4].substring(0,dataArray[j][4].indexOf(' '));
+    if(strOnlyDate != checkingDate) {
+      todayAppStartRow++;
+    } else {
+      break;
+    }
+  }
+
+  var onlyToday = dataArray.splice(todayAppStartRow, todayAppCount); // onlyToday should contain only today's appointments
+  
+  shEdit.getRange(2,1,shEdit.getMaxRows()-1,shEdit.getMaxColumns()).clear(); // clear shEdit
+  shEdit.getRange(2,1,onlyToday.length,onlyToday[0].length).setValues(onlyToday); // paste onlyToday into shEdit
+
+  lastRow = shEdit.getLastRow(); // update lastRow
+  lastColumn = shEdit.getLastColumn(); // update lastColumn
+  
+  shEdit.getRange(2,1,lastRow-1,lastColumn).sort([{column: 3, ascending: true}]); // sort by created time
+  //shEdit.getRange(1,3,shEdit.getLastRow(),1).setNumberFormat("@"); 
+  
+  var updatedDataArray = shEdit.getRange(2,1,lastRow-1,lastColumn).getValues(); // put values sorted by created time into updatedDataArray
+  Logger.log("Before date object, updatedDataArray[2][2] is " + updatedDataArray[2][2]);
+  for (var i=0; i<updatedDataArray.length; i++) {
+    updatedDataArray[i][2]=new Date(updatedDataArray[i][2]); // make all the values into date objects
+  }
+
+  var newAppCount = 0, newAppStartRow = 0;
+  
+  var lastUpdatedTime = sh.getRange(1,10).getValue();
+  lastUpdatedTime = new Date(lastUpdatedTime);
+  
+  Logger.log("After date object, updatedDataArray[2][2] is " + updatedDataArray[2][2]);
+  Logger.log("updatedDataArray[2][2] > lastUpdatedTime is " + updatedDataArray[2][2] > lastUpdatedTime);
+  Logger.log("updatedDataArray[3][2] is " + updatedDataArray[3][2]);
+  Logger.log("updatedDataArray[3][2] > lastUpdatedTime is " + updatedDataArray[3][2] > lastUpdatedTime);
+
+  for(var i=0; i<updatedDataArray.length; i++) {
+    if(updatedDataArray[i][2] > lastUpdatedTime) {
+      newAppCount++;
+    }
+  }
+
+  for(var j=0; j<updatedDataArray.length; j++) {
+    //var strOnlyCreatedTime = updatedDataArray[j][2].substring((updatedDataArray[i][2].indexOf(' '))+1);
+    if(updatedDataArray[j][2] <= lastUpdatedTime) {
+      newAppStartRow++;
+    } else {
+      break;
+    }
+  }
+
+  var onlyNew = updatedDataArray.splice(newAppStartRow, newAppCount);
+  
+  shEdit.getRange(2,1,shEdit.getMaxRows()-1,shEdit.getMaxColumns()).clear();
+  sh.getRange(prevEntries,1,sh.getLastRow()-prevEntries+1,sh.getLastColumn()).clear();
+  
+  if (onlyNew.length>0) {
+    
+    shEdit.getRange(2,1,onlyNew.length,onlyNew[0].length).setValues(onlyNew); // paste onlyNew into shEdit
+  
+    sh.getRange(prevEntries,1).setValue("NEW").setFontWeight("bold").setFontColor("#2c7fb4");
+    shEdit.getRange(2,1,shEdit.getLastRow(),1).copyTo(sh.getRange(prevEntries+1,2,shEdit.getLastRow()-1,1));
+    shEdit.getRange(2,2,shEdit.getLastRow(),1).copyTo(sh.getRange(prevEntries+1,3,shEdit.getLastRow()-1,1));
+    shEdit.getRange(2,4,shEdit.getLastRow(),1).copyTo(sh.getRange(prevEntries+1,10,shEdit.getLastRow()-1,1));
+    shEdit.getRange(2,5,shEdit.getLastRow(),1).copyTo(sh.getRange(prevEntries+1,14,shEdit.getLastRow()-1,1));
+    shEdit.getRange(2,6,shEdit.getLastRow(),1).copyTo(sh.getRange(prevEntries+1,15,shEdit.getLastRow()-1,1));
+    shEdit.getRange(2,7,shEdit.getLastRow(),1).copyTo(sh.getRange(prevEntries+1,9,shEdit.getLastRow()-1,1));
+    shEdit.getRange(2,8,shEdit.getLastRow(),1).copyTo(sh.getRange(prevEntries+1,12,shEdit.getLastRow()-1,1));
+    shEdit.getRange(2,9,shEdit.getLastRow(),1).copyTo(sh.getRange(prevEntries+1,16,shEdit.getLastRow()-1,1));
+    shEdit.getRange(2,10,shEdit.getLastRow(),1).copyTo(sh.getRange(prevEntries+1,13,shEdit.getLastRow()-1,1));
+    
+    sh.getRange(prevEntries+1,1,sh.getLastRow()-prevEntries,sh.getLastColumn()).sort([{column: 3, ascending: false}]);
+  }
+  
+  sh.getRange(1,10).setValue(d).setFontColor("#2c7fb4");
+  var editTime = Utilities.formatDate(d, "GMT-5", "hh:mm a MMMM d, yyyy.")
+  sh.getRange(1,12).setValue("Last Updated: " + editTime).setFontColor("#FFFFFF");
+  for (var i=prevEntries+1; i<=sh.getLastRow();i++) {
+    if (sh.getRange(i,3).getValue()!="accepted") {
+      sh.getRange(i, 1, 1, sh.getLastColumn()).setBackground("#dd7e6b");
+    }
+  }
+  sh.getRange(sh.getLastRow()+1,1).setValue("END");
+  
+  lastRow = sh.getLastRow(); // update lastRow
+  shFormat.getRange("D2").copyTo(sh.getRange(3,4, lastRow-2, 1), {formatOnly:true}); // Tickets		
+  shFormat.getRange("D3").copyTo(sh.getRange(3,4, lastRow-2, 1), {formatOnly:true}); // Tickets
+  shFormat.getRange("E2").copyTo(sh.getRange(3,5, lastRow-2, 1), {formatOnly:true});  // Card on File
+  shFormat.getRange("E3").copyTo(sh.getRange(3,5, lastRow-2, 1), {formatOnly:true});  // Card on File
+  shFormat.getRange("E4").copyTo(sh.getRange(3,5, lastRow-2, 1), {formatOnly:true});  // Card on File
+  shFormat.getRange("F2").copyTo(sh.getRange(3,7, lastRow-2, 1), {formatOnly:true});  // Envoy
+  shFormat.getRange("F3").copyTo(sh.getRange(3,7, lastRow-2, 1), {formatOnly:true});  // Envoy
+  shFormat.getRange("F4").copyTo(sh.getRange(3,7, lastRow-2, 1), {formatOnly:true});  // Envoy
+  shFormat.getRange("G2").copyTo(sh.getRange(3,6, lastRow-2, 1), {formatOnly:true});  // Special Billing
+  shFormat.getRange("G3").copyTo(sh.getRange(3,6, lastRow-2, 1), {formatOnly:true});  // Special Billing 
+  shFormat.getRange("G4").copyTo(sh.getRange(3,6, lastRow-2, 1), {formatOnly:true});  // Special Billing
+  shFormat.getRange("G5").copyTo(sh.getRange(3,6, lastRow-2, 1), {formatOnly:true});  // Special Billing
+  shFormat.getRange("G6").copyTo(sh.getRange(3,6, lastRow-2, 1), {formatOnly:true});  // Special Billing 
+  shFormat.getRange("H13").copyTo(sh.getRange(3,1, lastRow-2, lastColumn), {formatOnly:true});  // Processed
+  shFormat.getRange("H14").copyTo(sh.getRange(3,1, lastRow-2, lastColumn), {formatOnly:true});  // Processed
+  shFormat.getRange("H15").copyTo(sh.getRange(3,1, lastRow-2, lastColumn), {formatOnly:true});  // Processed  
+  
+  lastRow = sh.getLastRow(); // update lastRow
+  lastColumn = sh.getLastColumn(); // update lastColumn
+  maxRows = sh.getMaxRows(); // update maxRow
+  
+  sh.deleteRows(lastRow + 1, maxRows - lastRow);
+  
+  for (i=3; i<=lastRow; i++) {
+    sh.setRowHeight(i, 30);
+  }
+  
+}
